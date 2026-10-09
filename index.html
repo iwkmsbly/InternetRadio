@@ -168,6 +168,7 @@ const airLabel = document.getElementById('airLabel');
 let current = -1;
 let hls = null;
 let isPlaying = false;
+const relayUrl = url => '/proxy?url=' + encodeURIComponent(url);
 
 function setStatus(message) {
   statusEl.textContent = message;
@@ -227,11 +228,25 @@ function tune(index) {
   renderStations();
 
   if (audio.canPlayType('application/vnd.apple.mpegurl')) {
-    audio.src = station.url;
+    audio.src = relayUrl(station.url);
     setStatus('Station selected. Press Listen to start playback.');
   } else if (window.Hls && Hls.isSupported()) {
-    hls = new Hls({ enableWorker: true, lowLatencyMode: true });
-    hls.loadSource(station.url);
+    hls = new Hls({
+      enableWorker: true,
+      lowLatencyMode: false,
+      maxBufferLength: 45,
+      maxMaxBufferLength: 90,
+      maxBufferSize: 60 * 1000 * 1000,
+      backBufferLength: 30,
+      manifestLoadingMaxRetry: 5,
+      manifestLoadingRetryDelay: 1000,
+      levelLoadingMaxRetry: 6,
+      levelLoadingRetryDelay: 1000,
+      fragLoadingMaxRetry: 8,
+      fragLoadingRetryDelay: 1000,
+      fragLoadingMaxRetryTimeout: 64000
+    });
+    hls.loadSource(relayUrl(station.url));
     hls.attachMedia(audio);
     hls.on(Hls.Events.MANIFEST_PARSED, () => setStatus('Stream ready. Press Listen to start playback.'));
     hls.on(Hls.Events.ERROR, (_, data) => {
@@ -242,7 +257,7 @@ function tune(index) {
     });
     setStatus('Connecting to stream…');
   } else {
-    audio.src = station.url;
+    audio.src = relayUrl(station.url);
     setStatus('Native HLS is unavailable in this browser. Playback may not work.');
   }
 }
