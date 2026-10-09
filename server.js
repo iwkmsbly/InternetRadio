@@ -1,4 +1,4 @@
-// Airwave local HLS relay — Node.js 18+. Intended for localhost use only.
+/// Airwave local HLS relay — Node.js 18+. Intended for localhost use only.
 const http = require('node:http');
 const https = require('node:https');
 const dns = require('node:dns').promises;
@@ -122,8 +122,19 @@ const server = http.createServer(async (req,res) => {
       if(up.headers[h])headers[h]=up.headers[h];
     res.writeHead(status,headers);
     if(req.method==='HEAD'){up.destroy();return res.end();}
+    up.on('error', e => {
+      if (!res.headersSent) {
+        send(res, 502, 'text/plain; charset=utf-8', 'Upstream stream error: ' + e.message);
+      } else if (!res.destroyed) {
+        res.destroy(e);
+      }
+    });
     up.pipe(res);
-    req.on('close',()=>up.destroy());
+    // The incoming GET request may close as soon as its headers are read.
+    // Abort upstream only if the downstream client disconnects before completion.
+    res.on('close', () => {
+      if (!res.writableEnded) up.destroy();
+    });
   } catch(e) {
     send(res,502,'text/plain; charset=utf-8','Relay error: '+e.message);
   }
